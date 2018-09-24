@@ -1,13 +1,8 @@
 import pandas as pd
 from datetime import datetime as dt
+pd.set_option('display.max_columns', 100)
+import numpy as np
 
-df = pd.read_csv('Data/train.csv', nrows = 10000)
-
-
-'''
-Geo information to Data Frame
-'''
-type(df['geoNetwork'][0])
 
 
 def from_dicts_to_df(dicts):
@@ -42,82 +37,282 @@ def date_features(date):
     weekday = date.weekday()
     month = date.month
     year = date.year
-    date_dict = {'year':year, 'month':month, 'weekday':weekday, 'day':day}
+    weeknum = date.isocalendar()[1]
+
+    date_dict = {'year':year, 'month':month, 'weekday':weekday, 'weeknum':weeknum, 'day':day}
     return (str(date_dict))
 
 
-totals_df= from_dicts_to_df(df['totals'])
-geo_df = from_dicts_to_df(df['geoNetwork'])
-false_replaced = df['device'].apply(replaceTF)
+def flatten_data(df):
 
-device_df = from_dicts_to_df(false_replaced)
-dates_featurized = df['date'].apply(date_features)
-date_df = from_dicts_to_df(dates_featurized)
+    # Check how to keep ids for merge
 
-traffic_replaced = df['trafficSource'].apply(replaceTF)
-trafficSource_df = from_dicts_to_df(traffic_replaced)
+    totals_df= from_dicts_to_df(df['totals'])
+    geo_df = from_dicts_to_df(df['geoNetwork'])
+    false_replaced = df['device'].apply(replaceTF)
 
-adwordsClickInfo_df = from_dicts_to_df(trafficSource_df['adwordsClickInfo'].apply(str))
+    device_df = from_dicts_to_df(false_replaced)
+    dates_featurized = df['date'].apply(date_features)
+    date_df = from_dicts_to_df(dates_featurized)
 
-str(trafficSource_df['adwordsClickInfo'])
+    traffic_replaced = df['trafficSource'].apply(replaceTF)
+    trafficSource_df = from_dicts_to_df(traffic_replaced)
 
-a=pd.concat([totals_df, geo_df])
+    adwordsClickInfo_df = from_dicts_to_df(trafficSource_df['adwordsClickInfo'].apply(str))
+    trafficSource_df = trafficSource_df.drop('adwordsClickInfo', axis=1)
 
-totals_df.shape
-geo_df.shape
-a.shape
+    data=pd.concat([totals_df, geo_df, device_df, date_df, trafficSource_df, adwordsClickInfo_df], sort=False, axis = 1)
 
-trafficSource_df['adwordsClickInfo']
 
-trafficSource_df
 
-# TODO Dates to day, week, month, quarter, semi-year, year
+    return(data)
 
-for att in df.columns:
-    print(att+ ': ' + str(df[att][9999]))
 
-df['trafficSource'][9999]
+'''
+Drop columns
+'''
+# Define function for counting number of appearance for every categorical value
+def num_of_occurrence_in_cat(data):
 
-df.shape
+    logical_vec = (data.dtypes == object)
+    result_dict = {}   # pd.DataFrame(columns=['att_name','category','count'])
+
+    for i in range(len(logical_vec)):
+
+        if logical_vec[i] == True:
+            att = data.columns[i]
+            count_val = pd.DataFrame(pd.value_counts(data.iloc[:, i]))
+            result_dict.update({att : count_val})
+
+    return result_dict
+
+# we can return list of attributes also
+def remove_single_category(data):
+    cat_counts = num_of_occurrence_in_cat(data)
+    one_value_att = []
+    for key in cat_counts.keys():
+        if len(cat_counts[key]) == 1:
+            one_value_att.append(cat_counts[key].columns[0])
+
+    data = data.drop(columns=one_value_att)
+    return (data, one_value_att)
+
+def set_types(data):
+    data['visitNumber'] = pd.to_numeric(data['visitNumber'], errors = 'coerce')
+    data['hits'] = pd.to_numeric(data['hits'], errors = 'coerce')
+    data['bounces'] = pd.to_numeric(data['bounces'], errors = 'coerce')
+    data['newVisits'] = pd.to_numeric(data['newVisits'], errors = 'coerce')
+    data['visits'] = pd.to_numeric(data['visits'], errors = 'coerce')
+    data['pageviews'] = pd.to_numeric(data['pageviews'], errors = 'coerce')
+    data['transactionRevenue'] = pd.to_numeric(data['transactionRevenue'], errors = 'coerce')
+    data['visitStartTime'] = data['visitStartTime'].apply(dt.fromtimestamp)
+    return(data)
+
+def map_to_other_categories(df, count_dict, threshold):
+    atts = df.columns
+    for key in count_dict.keys():
+        if ((key in atts) and (key not in ['fullVisitorId', 'sessionId',  'gclId'])):
+            percentage = count_dict[key]/np.sum(count_dict[key])*100
+            low_percentage_values = percentage.index[percentage[key] < threshold].tolist()
+            df[key] = df[key].apply(lambda x: 'other' if x in low_percentage_values else x)
+    return (df)
+
+def fill_nas(df):
+    df['isVideoAd'] = df['isVideoAd'].fillna(True)
+    df['isTrueDirect'] = df['isTrueDirect'].fillna(False)
+    df['transactionRevenue'] = df['transactionRevenue'].fillna(0)
+    return df
+
+
+
+df = pd.read_csv('Data/train.csv', low_memory=False,  dtype={'fullVisitorId': 'object'})
+
+flattened_data = flatten_data(df)
+
+flattened_data.head()
+
+flat_data = df.drop(['totals', 'geoNetwork', 'device', 'date', 'trafficSource'], axis=1)
+
+
+all_data = pd.concat([flat_data, flattened_data], sort = False, axis=1)
+
+
+all_data = set_types(all_data)
+
+all_data = fill_nas(all_data)
+
+
+all_data = all_data.drop('targetingCriteria', axis =1)
+
+all_data, remove_atts = remove_single_category(all_data)
+
+category_counts = num_of_occurrence_in_cat(all_data)
+
+#category_counts.keys()
+
+all_data=map_to_other_categories(all_data, category_counts, 5)
+
+#######
+null_analysis = (all_data.isnull().sum()/all_data.shape[0]) * 100
+
+all_data['bounces'] = all_data['bounces'].fillna(0)
+all_data['newVisits'] = all_data['newVisits'].fillna(0)
+all_data['pageviews'] = all_data['pageviews'].fillna(0)
+
+to_remove = ['adContent', 'keyword', 'adNetworkType', 'gclId', 'page', 'slot', 'referralPath']
+
+all_data = all_data.drop(to_remove, axis=1)
+
+all_data = all_data.drop('referralPath', axis=1)
+
+all_data['id_real'] = all_data['fullVisitorId']+all_data['visitStartTime'].astype(str)
+
+null_analysis = (all_data.isnull().sum()/all_data.shape[0]) * 100
+
+all_data.to_csv('reduced_data.csv', header = True)
+
+all_data = pd.read_csv('reduced_data.csv')
+
+all_data.head()
+
+all_data['referralPath']
+
+a=
+
+all_data.dtypes
+
+len(a.unique())
+
+len(all_data['visitId'].unique())
+
+len(all_data['sessionId'].unique())
+
+all_data.shape
+
+all_data.dtypes
+
+pd.value_counts(all_data['referralPath'])
+
+
+
+
+
+
+all_data.head(100)
+
+# Id resiti
+# Izbaciti one sa samo 1 kategorijom (mala varijansa i kod kategorickih i numerickih)
+# longitude lattitude
+#
+
+all_data.dtypes
+all_data.shape # (6,325,571, 60)
+
+all_data.columns
+all_data.describe()
+
+'''
+Check null values in data 
+'''
+
+# Vratiti se na ovo i razmotriti kako da se resi problem ovoliko nedostajucih vrednosti
+num_rows = all_data.shape[0]
+100 - (all_data.count()/num_rows * 100)
+
+null_analysis = (all_data.isnull().sum()/num_rows) * 100
+
+all_data.dtypes
+
+
+
+
+
+attributes_to_remove = ''
+
+d['visitStartTime']
+
+d.dtypes
+a.keys()
+
+dt.date(d['visitStartTime'])
+
+data = remove_single_category(all_data)
+
+
+
+d.dtypes
+
+null_analysis = (d.isnull().sum()/num_rows) * 100
+
+all_data = all_data.drop(['targetingCriteria'],axis=1)
+
+a=num_of_occurrence_in_cat(all_data)
+
+a['channelGrouping']
+
+all_data.dtypes
+
+all_data['hits']
+
+
+### Problem with targetingCriteria attributes (error: TypeError: unhashable type: 'dict')
+### Check non null vales of this attributes
+all_data['targetingCriteria'][all_data['targetingCriteria'].notnull()]
+
+### All values are {} (empty Dictionaries)
+### remove this attribute from data
+all_data = all_data.drop(['targetingCriteria'],axis=1)
+
+
+cat_counts = num_of_occurrence_in_cat(all_data)
+cat_counts.keys()
+
+
+
+for key in cat_counts.keys():
+    print(key +": " + str(len(cat_counts[key])))
+
+
+### DA LI TREBA ISKLJUCITI I OVA DVA ATRIBUTA
+k = ['isTrueDirect','isVideoAd']
+
+for key in k:
+    print(cat_counts[key])
+
+# remove attributes that have only one value for all non null rows
+
+
+
+null_analysis = (all_data.isnull().sum()/num_rows) * 100
+cat_counts
+
+
+all_data.dtypes
+
+
+all_data.visitId.count()
+all_data.sessionId.count()
+all_data.transactionRevenue.count()
+
+
+len(all_data.visitId.unique())
+len(all_data.sessionId.unique())
+
+
+'''
+# provera sa pocetnim podacima
+
+df.dtypes
+df.shape # (903,653, 12)
 
 df.columns
+df.describe()
 
-type(a)
+org_cat_counts = num_of_occurrence_in_cat(df)
+org_cat_counts.keys()
 
+for key in org_cat_counts.keys():
+    print(key +": " + str(len(org_cat_counts[key])))
 
-
-ex_date = df['date'][9970]
-ex_date
-
-df
-a=dt.strptime(str(ex_date), '%Y%m%d')
-a.
-
-
-a.weekday()
-df.columns
-a.month
-a.day
-a.year
-
-
-
-df.columns
-
-
-
-#false_replaced = df['device'].apply(lambda str: str.replace("false", "False"))
-
-false_replaced[1]
-
-
-
-geo_df.iloc[2, :]
-
-
-
-df.columns
-type(geos_eval)
-
-
-
+cat_counts['socialEngagementType']
+'''
