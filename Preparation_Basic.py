@@ -104,7 +104,7 @@ def set_types(data):
     data['newVisits'] = pd.to_numeric(data['newVisits'], errors = 'coerce')
     data['visits'] = pd.to_numeric(data['visits'], errors = 'coerce')
     data['pageviews'] = pd.to_numeric(data['pageviews'], errors = 'coerce')
-    data['transactionRevenue'] = pd.to_numeric(data['transactionRevenue'], errors = 'coerce')
+    #data['transactionRevenue'] = pd.to_numeric(data['transactionRevenue'], errors = 'coerce')
     data['visitStartTime'] = data['visitStartTime'].apply(dt.fromtimestamp)
     return(data)
 
@@ -120,14 +120,20 @@ def map_to_other_categories(df, count_dict, threshold):
 def fill_nas(df):
     df['isVideoAd'] = df['isVideoAd'].fillna(True)
     df['isTrueDirect'] = df['isTrueDirect'].fillna(False)
-    df['transactionRevenue'] = df['transactionRevenue'].fillna(0)
+    #df['transactionRevenue'] = df['transactionRevenue'].fillna(0)
     return df
 
 
 
-df = pd.read_csv('Data/train.csv', low_memory=False,  dtype={'fullVisitorId': 'object'})
+df = pd.read_csv('Data/test.csv', low_memory=False,  dtype={'fullVisitorId': 'object'})
+
+
+
 
 flattened_data = flatten_data(df)
+
+
+flattened_data.columns
 
 flattened_data.head()
 
@@ -144,13 +150,20 @@ all_data = fill_nas(all_data)
 
 all_data = all_data.drop('targetingCriteria', axis =1)
 
+all_data.columns
+
 all_data, remove_atts = remove_single_category(all_data)
+
+all_data.shape
 
 category_counts = num_of_occurrence_in_cat(all_data)
 
 #category_counts.keys()
 
+
+# TODO have to create map (!!!! Wrapper)
 all_data=map_to_other_categories(all_data, category_counts, 5)
+
 
 #######
 null_analysis = (all_data.isnull().sum()/all_data.shape[0]) * 100
@@ -159,160 +172,17 @@ all_data['bounces'] = all_data['bounces'].fillna(0)
 all_data['newVisits'] = all_data['newVisits'].fillna(0)
 all_data['pageviews'] = all_data['pageviews'].fillna(0)
 
+
+all_data.columns
 to_remove = ['adContent', 'keyword', 'adNetworkType', 'gclId', 'page', 'slot', 'referralPath']
 
 all_data = all_data.drop(to_remove, axis=1)
 
-all_data = all_data.drop('referralPath', axis=1)
 
 all_data['id_real'] = all_data['fullVisitorId']+all_data['visitStartTime'].astype(str)
 
 null_analysis = (all_data.isnull().sum()/all_data.shape[0]) * 100
 
-all_data.to_csv('reduced_data.csv', header = True)
+all_data.to_csv('Data/reduced_data_test.csv', header = True)
 
-all_data = pd.read_csv('reduced_data.csv')
 
-all_data.head()
-
-all_data['referralPath']
-
-a=
-
-all_data.dtypes
-
-len(a.unique())
-
-len(all_data['visitId'].unique())
-
-len(all_data['sessionId'].unique())
-
-all_data.shape
-
-all_data.dtypes
-
-pd.value_counts(all_data['referralPath'])
-
-
-
-
-
-
-all_data.head(100)
-
-# Id resiti
-# Izbaciti one sa samo 1 kategorijom (mala varijansa i kod kategorickih i numerickih)
-# longitude lattitude
-#
-
-all_data.dtypes
-all_data.shape # (6,325,571, 60)
-
-all_data.columns
-all_data.describe()
-
-'''
-Check null values in data 
-'''
-
-# Vratiti se na ovo i razmotriti kako da se resi problem ovoliko nedostajucih vrednosti
-num_rows = all_data.shape[0]
-100 - (all_data.count()/num_rows * 100)
-
-null_analysis = (all_data.isnull().sum()/num_rows) * 100
-
-all_data.dtypes
-
-
-
-
-
-attributes_to_remove = ''
-
-d['visitStartTime']
-
-d.dtypes
-a.keys()
-
-dt.date(d['visitStartTime'])
-
-data = remove_single_category(all_data)
-
-
-
-d.dtypes
-
-null_analysis = (d.isnull().sum()/num_rows) * 100
-
-all_data = all_data.drop(['targetingCriteria'],axis=1)
-
-a=num_of_occurrence_in_cat(all_data)
-
-a['channelGrouping']
-
-all_data.dtypes
-
-all_data['hits']
-
-
-### Problem with targetingCriteria attributes (error: TypeError: unhashable type: 'dict')
-### Check non null vales of this attributes
-all_data['targetingCriteria'][all_data['targetingCriteria'].notnull()]
-
-### All values are {} (empty Dictionaries)
-### remove this attribute from data
-all_data = all_data.drop(['targetingCriteria'],axis=1)
-
-
-cat_counts = num_of_occurrence_in_cat(all_data)
-cat_counts.keys()
-
-
-
-for key in cat_counts.keys():
-    print(key +": " + str(len(cat_counts[key])))
-
-
-### DA LI TREBA ISKLJUCITI I OVA DVA ATRIBUTA
-k = ['isTrueDirect','isVideoAd']
-
-for key in k:
-    print(cat_counts[key])
-
-# remove attributes that have only one value for all non null rows
-
-
-
-null_analysis = (all_data.isnull().sum()/num_rows) * 100
-cat_counts
-
-
-all_data.dtypes
-
-
-all_data.visitId.count()
-all_data.sessionId.count()
-all_data.transactionRevenue.count()
-
-
-len(all_data.visitId.unique())
-len(all_data.sessionId.unique())
-
-
-'''
-# provera sa pocetnim podacima
-
-df.dtypes
-df.shape # (903,653, 12)
-
-df.columns
-df.describe()
-
-org_cat_counts = num_of_occurrence_in_cat(df)
-org_cat_counts.keys()
-
-for key in org_cat_counts.keys():
-    print(key +": " + str(len(org_cat_counts[key])))
-
-cat_counts['socialEngagementType']
-'''
