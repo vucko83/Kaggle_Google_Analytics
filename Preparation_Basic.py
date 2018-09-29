@@ -61,8 +61,8 @@ def flatten_data(df):
     adwordsClickInfo_df = from_dicts_to_df(trafficSource_df['adwordsClickInfo'].apply(str))
     trafficSource_df = trafficSource_df.drop('adwordsClickInfo', axis=1)
 
-    data=pd.concat([totals_df, geo_df, device_df, date_df, trafficSource_df, adwordsClickInfo_df], sort=False, axis = 1)
-
+    #data=pd.concat([totals_df, geo_df, device_df, date_df, trafficSource_df, adwordsClickInfo_df], sort=False, axis = 1)
+    data = pd.concat([totals_df, geo_df, device_df, date_df, trafficSource_df, adwordsClickInfo_df], axis=1)
 
 
     return(data)
@@ -125,29 +125,23 @@ def fill_nas(df):
 
 
 
-df = pd.read_csv('Data/test.csv', low_memory=False,  dtype={'fullVisitorId': 'object'})
-
+df = pd.read_csv('Data/train.csv', low_memory=False,  dtype={'fullVisitorId': 'object'})
 
 
 
 flattened_data = flatten_data(df)
-
-
 flattened_data.columns
-
 flattened_data.head()
 
 flat_data = df.drop(['totals', 'geoNetwork', 'device', 'date', 'trafficSource'], axis=1)
 
 
-all_data = pd.concat([flat_data, flattened_data], sort = False, axis=1)
+#all_data = pd.concat([flat_data, flattened_data], sort = False, axis=1)
+all_data = pd.concat([flat_data, flattened_data], axis=1)
 
 
 all_data = set_types(all_data)
-
 all_data = fill_nas(all_data)
-
-
 all_data = all_data.drop('targetingCriteria', axis =1)
 
 all_data.columns
@@ -162,8 +156,7 @@ category_counts = num_of_occurrence_in_cat(all_data)
 
 
 # TODO have to create map (!!!! Wrapper)
-all_data=map_to_other_categories(all_data, category_counts, 5)
-
+all_data = map_to_other_categories(all_data, category_counts, 5)
 
 #######
 null_analysis = (all_data.isnull().sum()/all_data.shape[0]) * 100
@@ -171,7 +164,6 @@ null_analysis = (all_data.isnull().sum()/all_data.shape[0]) * 100
 all_data['bounces'] = all_data['bounces'].fillna(0)
 all_data['newVisits'] = all_data['newVisits'].fillna(0)
 all_data['pageviews'] = all_data['pageviews'].fillna(0)
-
 
 all_data.columns
 to_remove = ['adContent', 'keyword', 'adNetworkType', 'gclId', 'page', 'slot', 'referralPath']
@@ -183,6 +175,47 @@ all_data['id_real'] = all_data['fullVisitorId']+all_data['visitStartTime'].astyp
 
 null_analysis = (all_data.isnull().sum()/all_data.shape[0]) * 100
 
+all_data.to_csv('Data/reduced_data.csv', header = True)
+
+########################### Apply same procedure on test ###################
+
+df = pd.read_csv('Data/test.csv', low_memory=False,  dtype={'fullVisitorId': 'object'})
+
+flattened_data = flatten_data(df)
+
+flat_data = df.drop(['totals', 'geoNetwork', 'device', 'date', 'trafficSource'], axis=1)
+
+#all_data = pd.concat([flat_data, flattened_data], sort = False, axis=1)
+all_data = pd.concat([flat_data, flattened_data], axis=1)
+
+all_data = set_types(all_data)
+all_data = fill_nas(all_data)
+all_data = all_data.drop('targetingCriteria', axis =1)
+
+
+all_data, remove_atts = remove_single_category(all_data)
+category_counts = num_of_occurrence_in_cat(all_data)
+
+#category_counts.keys()
+
+
+# TODO have to create map (!!!! Wrapper)
+all_data = map_to_other_categories(all_data, category_counts, 5)
+
+
+#######
+null_analysis = (all_data.isnull().sum()/all_data.shape[0]) * 100
+
+all_data['bounces'] = all_data['bounces'].fillna(0)
+all_data['newVisits'] = all_data['newVisits'].fillna(0)
+all_data['pageviews'] = all_data['pageviews'].fillna(0)
+
+
+to_remove = ['adContent', 'keyword', 'adNetworkType', 'gclId', 'page', 'slot', 'referralPath']
+
+all_data = all_data.drop(to_remove, axis=1)
+all_data['id_real'] = all_data['fullVisitorId']+all_data['visitStartTime'].astype(str)
+
+null_analysis = (all_data.isnull().sum()/all_data.shape[0]) * 100
+
 all_data.to_csv('Data/reduced_data_test.csv', header = True)
-
-

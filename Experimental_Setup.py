@@ -21,7 +21,6 @@ df = pd.read_csv('Data/reduced_data.csv', low_memory=False)
 df.dtypes
 
 
-
 class FunctionFeaturizer(BaseEstimator, TransformerMixin):
     '''
     This one is for mean - it can be used for binary or numerical class
@@ -66,24 +65,23 @@ Basic prep - Extract VisitorId, y, and remove unused variables
 
 visitor_id = df['fullVisitorId']
 y_numerical = df['transactionRevenue']
+y_numerical = y_numerical.fillna(0)
 
 remove_atts = ['Unnamed: 0', 'sessionId', 'visitId', 'visitStartTime', 'fullVisitorId', 'id_real', 'networkDomain', 'transactionRevenue']
 
 
 df = df.drop(remove_atts, axis=1)
 
-
-
-
+df['transactionRevenue'] = df['transactionRevenue'].fillna(0)
 
 '''
 Classification model fitting
 '''
 
-
-
+y = y_numerical.astype('int')
 y_numerical = y_numerical.apply(lambda x: 1 if x>0 else x)
-y =y_numerical.astype('int')
+
+
 X_train, X_test, y_train, y_test = train_test_split(df, y, test_size=0.3, stratify=y)
 ff = FunctionFeaturizer()
 
@@ -98,8 +96,6 @@ clf = GridSearchCV(pipe, param_grid = param_grid, cv=4, scoring = 'roc_auc', n_j
 
 
 #TODO Set threshold that captures most of the positive cases
-
-
 
 model=clf.fit(X=X_train, y=y_train)
 
@@ -139,11 +135,6 @@ model.predict(X)
 
 
 X_train.dtypes
-
-
-
-
-
 
 
 predictions = model.predict(X_test)
