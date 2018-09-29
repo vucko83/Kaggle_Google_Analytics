@@ -2,7 +2,7 @@ import pandas as pd
 import pickle
 
 
-test = pd.read_csv('Data/reduced_data_test.csv', low_memory=False)
+test = pd.read_csv('Data/reduced_data_test.csv', dtype={'fullVisitorId':'object'}, low_memory=False)
 
 test.columns
 # channelGrouping, medium
@@ -57,9 +57,34 @@ result.to_csv('Data/purchased_predictions.csv', header = True)
 '''
 Regression
 '''
-RF = pickle.load(open('Models/First_RF_Regression.sav','rb'))
+def prepare_for_submission(RF):
+
+    visitor_ids_positive = result['fullVisitorId']
+
+    result = result.drop('fullVisitorId', axis=1)
+    RF1 = pickle.load(open('Models/First_RF_Regression.sav','rb'))
+
+    prediction_regression = RF.predict(result)
 
 
+    predictions_1 = pd.concat([visitor_ids_positive, pd.Series(prediction_regression)], axis=1)
+    att_names = ['fullVisitorId', 'PredictedLogRevenue']
+    predictions_1.columns=att_names
+
+    predictions_agg_1 = predictions_1.groupby('fullVisitorId')['PredictedLogRevenue'].sum().reset_index()
+    predictions_agg_0 = test_0.reset_index()
+    predictions_agg_0.columns=att_names
+
+
+    for_submission = pd.concat([predictions_agg_0, predictions_agg_1], axis=0)
+
+    for_submission.to_csv('Data/Submissions/first_submission.csv', header = True, index=False)
+
+for_submission.dtypes
+
+for_submission.shape
+
+len(visitor_id.unique())
 
 
 # Assign 0s to predicted 0s

@@ -41,3 +41,4 @@ test_df['channelGrouping'].value_counts()
 
 fet[11]
 test_df['medium'].value_counts()
+

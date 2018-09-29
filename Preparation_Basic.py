@@ -144,11 +144,11 @@ all_data = set_types(all_data)
 all_data = fill_nas(all_data)
 all_data = all_data.drop('targetingCriteria', axis =1)
 
-all_data.columns
+
 
 all_data, remove_atts = remove_single_category(all_data)
 
-all_data.shape
+
 
 category_counts = num_of_occurrence_in_cat(all_data)
 
