@@ -16,7 +16,7 @@ from Experimental_Setup import  FunctionFeaturizer
 
 ff = FunctionFeaturizer()
 
-maps_train = ff.fit(train_df,train_df['transactionRevenue'])
+maps_train = ff.fit(df,test['transactionRevenue'])
 
 
 fet = maps_train.featurizers

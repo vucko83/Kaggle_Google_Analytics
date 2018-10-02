@@ -1,97 +1,77 @@
 import pandas as pd
 import pickle
+import numpy as np
+from Data_Cleansing import Cleansing_Tools as ct
+from Feature_Engineering.Categorical_Quantification import ReduceCardinality
+from Feature_Engineering.Categorical_Quantification import FunctionFeaturizer
+from Feature_Engineering.Categorical_Quantification import DataFrameImputer
+from sklearn.impute import SimpleImputer
+
+########################### Apply same procedure on test ###################
+
+train_df= pd.read_csv('Data/reduced_data.csv', low_memory=False,  dtype={'fullVisitorId': 'object'}, nrows=10)
 
 
-test = pd.read_csv('Data/reduced_data_test.csv', dtype={'fullVisitorId':'object'}, low_memory=False)
 
-test.columns
-# channelGrouping, medium
-
-visitor_id = test['fullVisitorId']
-remove_atts = ['Unnamed: 0', 'sessionId', 'visitId', 'visitStartTime', 'fullVisitorId', 'id_real', 'networkDomain']
-test = test.drop(remove_atts, axis=1)
-test = test.fillna(0)
-
-test['channelGrouping'] = test['channelGrouping'].replace('Display', 'other')
-test['medium'] = test['medium'].replace('cpc', 'other')
-
-test['channelGrouping'].value_counts()
-test['medium'].value_counts()
-# Take Ids
-
+test = pd.read_csv('Data/reduced_data_test.csv', low_memory=False,  dtype={'fullVisitorId': 'object'})
 
 '''
 Classification
 '''
 LR = pickle.load(open('Models/First_Logistic.sav','rb'))
-
-# Predict 0s with classification algorithm
-
-predictions_0 = LR.predict(test)
-
-# Concatenate predictions with Ids
-type(predictions_0)
-
-test['pred'] = predictions_0.tolist()
-test['fullVisitorId'] = visitor_id
-
-group_test = pd.DataFrame(test.groupby('fullVisitorId')['pred'].sum())
-
-mask = group_test.pred >= 1
-column_name = 'pred'
-group_test.loc[mask, column_name] = 1
-
-# Select Ids with 0s
-# Create variable with TRUE if nationality is USA
-test_0 = group_test[group_test['pred'] == 0]
-test_1 = group_test[group_test['pred'] == 1]
+predictions_class = LR.predict(test.drop('fullVisitorId', axis=1)) # Predict 0s with classification algorithm
 
 
-test_1 = test_1.reset_index()
+test['Predicted_Revenue'] = predictions_class
 
-result = pd.merge(test_1, test, on='fullVisitorId',how='inner')
-result = result.drop(['pred_x','pred_y'], axis=1)
+# Wrap up 0 predictions
+predictions_0 = test[test['Predicted_Revenue']==0][['fullVisitorId', 'Predicted_Revenue']]
 
-result.to_csv('Data/purchased_predictions.csv', header = True)
+
+data_for_regression = test[test['Predicted_Revenue']==1].drop('Predicted_Revenue', axis=1)
 
 '''
 Regression
 '''
-def prepare_for_submission(RF):
 
-    visitor_ids_positive = result['fullVisitorId']
+#visitor_ids_positive = predictions_1['fullVisitorId']
+#len(visitor_ids_positive.unique())
 
-    result = result.drop('fullVisitorId', axis=1)
-    RF1 = pickle.load(open('Models/First_RF_Regression.sav','rb'))
+RF1 = pickle.load(open('Models/First_RF_Regression.sav','rb'))
 
-    prediction_regression = RF.predict(result)
+prediction_regression = RF1.predict(data_for_regression.drop('fullVisitorId', axis=1))
 
+data_for_regression['Predicted_Revenue'] = np.exp(prediction_regression)
 
-    predictions_1 = pd.concat([visitor_ids_positive, pd.Series(prediction_regression)], axis=1)
-    att_names = ['fullVisitorId', 'PredictedLogRevenue']
-    predictions_1.columns=att_names
-
-    predictions_agg_1 = predictions_1.groupby('fullVisitorId')['PredictedLogRevenue'].sum().reset_index()
-    predictions_agg_0 = test_0.reset_index()
-    predictions_agg_0.columns=att_names
-
-
-    for_submission = pd.concat([predictions_agg_0, predictions_agg_1], axis=0)
-
-    for_submission.to_csv('Data/Submissions/first_submission.csv', header = True, index=False)
-
-for_submission.dtypes
-
-for_submission.shape
-
-len(visitor_id.unique())
-
-
-# Assign 0s to predicted 0s
+predictions_1 = data_for_regression[['fullVisitorId', 'Predicted_Revenue']]
 
 
 
-# Predict values with regression
+
+att_names = ['fullVisitorId', 'PredictedLogRevenue']
+
+all_predictions = pd.concat([predictions_0, predictions_1], axis=0)
+all_predictions.columns = att_names
+
+
+for_submission = all_predictions.groupby('fullVisitorId')['PredictedLogRevenue'].sum().reset_index()
+
+final_predictions =np.log1p(for_submission['PredictedLogRevenue'])
+
+for_submission['PredictedLogRevenue']=final_predictions
+
+
+for_submission.to_csv('Data/Submissions/first_submission.csv', header = True, index=False)
+
+'''
+Error analyses
+'''
+
+plt.scatter(range(len(prediction_regression)), np.sort(prediction_regression))
+plt.scatter(range(for_submission.shape[0]), np.sort(for_submission['PredictedLogRevenue']))
+plt.show()
+plt.close()
+
 
 
 
