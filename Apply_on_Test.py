@@ -15,6 +15,35 @@ train_df= pd.read_csv('Data/reduced_data.csv', low_memory=False,  dtype={'fullVi
 
 test = pd.read_csv('Data/reduced_data_test.csv', low_memory=False,  dtype={'fullVisitorId': 'object'})
 
+
+'''
+Model for whole dataframe
+'''
+
+
+XG = pickle.load(open('Models/First_Logistic.sav','rb'))
+all_predictions = LR.predict(test.drop('fullVisitorId', axis=1)) # Predict 0s with classification algorithm
+
+
+for_submission = all_predictions.groupby('fullVisitorId')['PredictedLogRevenue'].sum().reset_index()
+
+final_predictions =np.log1p(for_submission['PredictedLogRevenue'])
+
+for_submission['PredictedLogRevenue']=final_predictions
+
+
+for_submission.to_csv('Data/Submissions/first_submission.csv', header = True, index=False)
+
+
+
+
+
+
+
+
+
+
+
 '''
 Classification
 '''
@@ -28,7 +57,7 @@ test['Predicted_Revenue'] = predictions_class
 predictions_0 = test[test['Predicted_Revenue']==0][['fullVisitorId', 'Predicted_Revenue']]
 
 
-data_for_regression = test[test['Predicted_Revenue']==1].drop('Predicted_Revenue', axis=1)
+
 
 '''
 Regression
@@ -37,11 +66,15 @@ Regression
 #visitor_ids_positive = predictions_1['fullVisitorId']
 #len(visitor_ids_positive.unique())
 
+data_for_regression = test[test['Predicted_Revenue']==1].drop('Predicted_Revenue', axis=1)
+
+
+
 RF1 = pickle.load(open('Models/First_RF_Regression.sav','rb'))
 
 prediction_regression = RF1.predict(data_for_regression.drop('fullVisitorId', axis=1))
 
-data_for_regression['Predicted_Revenue'] = np.exp(prediction_regression)
+data_for_regression['Predicted_Revenue'] = prediction_regression
 
 predictions_1 = data_for_regression[['fullVisitorId', 'Predicted_Revenue']]
 

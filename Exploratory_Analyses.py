@@ -43,3 +43,10 @@ pred_outcome = for_submission[(for_submission['PredictedLogRevenue']<100 ) & ( f
 
 plt.scatter(range(pred_outcome.shape[0]), np.sort(pred_outcome['PredictedLogRevenue']))
 plt.show()
+
+
+'''
+Analyses after base 
+'''
+
+df_exp = pd.read_csv('Data/reduced_data.csv', low_memory=False, dtype={'fullVisitorId':'object'})
