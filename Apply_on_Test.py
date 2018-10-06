@@ -21,12 +21,14 @@ Model for whole dataframe
 '''
 
 
-XG = pickle.load(open('Models/First_Logistic.sav','rb'))
-all_predictions = LR.predict(test.drop('fullVisitorId', axis=1)) # Predict 0s with classification algorithm
+XG = pickle.load(open('Models/Total_Regression.sav','rb'))
+all_predictions = XG.predict(test.drop('fullVisitorId', axis=1)) # Predict 0s with classification algorithm
+att_names = ['fullVisitorId', 'PredictedLogRevenue']
 
-
-for_submission = all_predictions.groupby('fullVisitorId')['PredictedLogRevenue'].sum().reset_index()
-
+test['total_predictions']=all_predictions
+for_submission = test[['fullVisitorId', 'total_predictions']]
+for_submission.columns=att_names
+for_submission = for_submission.groupby('fullVisitorId')['PredictedLogRevenue'].sum().reset_index()
 final_predictions =np.log1p(for_submission['PredictedLogRevenue'])
 
 for_submission['PredictedLogRevenue']=final_predictions

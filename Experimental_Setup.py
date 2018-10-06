@@ -86,7 +86,6 @@ class GroupEstimator(BaseEstimator):
 def performance_on_user(y_true, y_pred, measure=mean_squared_error):
     y_true['y_pred'] = y_pred
     aggregated = y_true.groupby('fullVisitorId').agg('sum').reset_index()
-    print(aggregated.head())
     true = np.log1p(aggregated['transactionRevenue'])
     pred = np.log1p(aggregated['y_pred'])
     rmse = np.sqrt(measure(true, pred))
@@ -101,7 +100,7 @@ X = df[mask_positive_cases]
 
 
 
-pipe = Pipeline(steps = [('reducer', ReduceCardinality()), ('featurize', FunctionFeaturizer()) , ('impute',SimpleImputer(strategy='median')), ('classify', GroupEstimator(XGBRegressor()))])
+pipe = Pipeline(steps = [('reducer', ReduceCardinality()), ('featurize', FunctionFeaturizer()) , ('impute',SimpleImputer(strategy='median')), ('classify', GroupEstimator(XGBRegressor(nthread=4, n_jobs=4)))])
 
 '''
 param_grid = {
@@ -111,18 +110,18 @@ param_grid = {
 
 '''
 
-'''
 param_grid_XGboost ={
-    'classify_eta':[0.01, 0.1, 0.3, 0.5, 0.7],
-    'classify_gama':[0.01, 0.05, 0.1, 0.3, 0.5, 1, 5],
-    'classify_max_depth':[3,5,10,15,20],
-    'classify_colsample_bytree':[0.1, 0.5, 0.9],
-    'classify_colsample_bylevel':[0.1, 0.5, 0.9],
-    'classify_lambda': [0.1, 0.3, 0.5, 0.9]
-    'classify_alpha': [0.1, 0.3, 0.5, 0.9]
+    'classify__base_estimator__learning_rate':[0.3],
+    'classify__base_estimator__gamma':[0.01, 0.05, 0.1, 0.3, 0.5, 1, 5],
+    'classify__base_estimator__max_depth':[3,5,10,15,20],
+    'classify__base_estimator__colsample_bytree':[0.1, 0.5, 0.9],
+    'classify__base_estimator__colsample_bylevel':[0.1, 0.5, 0.9],
+    'classify__base_estimator__reg_lambda': [0.1, 0.3, 0.5, 0.9],
+    'classify__base_estimator__reg_alpha': [0.1, 0.3, 0.5, 0.9],
+    'classify__base_estimator__subsample': [0.7, 1],
+    'classify__base_estimator__n_estimators':[50, 100, 500, 1000, 3000]
 }
 
-'''
 '''
 base_score=0.5, booster='gbtree', colsample_bylevel=1,
        colsample_bytree=1, gamma=0, learning_rate=0.1, max_delta_step=0,
@@ -133,13 +132,14 @@ base_score=0.5, booster='gbtree', colsample_bylevel=1,
 '''
 
 
-
+'''
 param_grid_XGboost ={
     'classify__base_estimator__gamma':[0, 0.3],
     'classify__base_estimator__max_depth':[5],
     'classify__base_estimator__n_estimators':[20],
-    'classify__base_estimator__nthread':[4]
+    
 }
+'''
 
 
 clf = GridSearchCV(pipe, cv=4,param_grid = param_grid_XGboost, scoring=rmse_score, return_train_score=False, error_score='raise', verbose=True)
@@ -155,10 +155,54 @@ pickle._dump(model, open('Models/First_RF_Regression.sav', 'wb'))
 '''
 Learning on whole dataframe
 '''
-clf = GridSearchCV(pipe, cv=4,param_grid = param_grid_XGboost, scoring=rmse_score, return_train_score=False, error_score='raise', verbose=True)
+
+param_grid_XGboost ={
+    'classify__base_estimator__learning_rate':[0.3],
+    'classify__base_estimator__gamma':[0.01, 0.05, 0.1],
+    'classify__base_estimator__max_depth':[5,10,15],
+    'classify__base_estimator__colsample_bytree':[0.7,1],
+    'classify__base_estimator__colsample_bylevel':[0.7,1],
+    'classify__base_estimator__reg_lambda': [0.1],
+    'classify__base_estimator__reg_alpha': [0.1, 0.5],
+    'classify__base_estimator__subsample': [0.7, 1],
+    'classify__base_estimator__n_estimators':[50, 100, 500]
+}
+
+clf = GridSearchCV(pipe, cv=5,param_grid = param_grid_XGboost, scoring=rmse_score, return_train_score=False, error_score='raise', verbose=True)
 model=clf.fit(X=df.drop(['fullVisitorId', 'transactionRevenue'], axis =1), y=df[['fullVisitorId', 'transactionRevenue']])
 print(model.best_score_)
 pickle._dump(model, open('Models/Total_Regression.sav', 'wb'))
+
+
+
+'''
+Light GBM regression
+
+'''
+from lightgbm import LGBMRegressor
+
+param_grid_LGBM = {
+    'classify__base_estimator__objective':['regression'],
+    'classify__base_estimator__boosting_type':['gbdt'],
+    'classify__base_estimator__metric':['rmse'],
+    'classify__base_estimator__n_estimators':[10000], #10000
+    'classify__base_estimator__num_leaves':[30],
+    'classify__base_estimator__learning_rate':[0.01], #0.01
+    'classify__base_estimator__bagging_fraction':[0.9],#0.8
+    'classify__base_estimator__feature_fraction':[0.3],#.3
+    'classify__base_estimator__max_depth':[12] #-1
+}
+
+
+pipe = Pipeline(steps = [('reducer', ReduceCardinality()), ('featurize', FunctionFeaturizer()) , ('impute',SimpleImputer(strategy='median')), ('classify', GroupEstimator(LGBMRegressor(nthread=4, n_jobs=4)))])
+clf = GridSearchCV(pipe, cv=5,param_grid = param_grid_LGBM, scoring=rmse_score, return_train_score=False, error_score='raise', verbose=True)
+model=clf.fit(X=df.drop(['fullVisitorId', 'transactionRevenue'], axis =1), y=df[['fullVisitorId', 'transactionRevenue']])
+print(model.best_score_)
+pickle._dump(model, open('Models/Total_Regression.sav', 'wb'))
+
+
+# Try with and without categorical features
+
 
 
 
