@@ -24,6 +24,7 @@ from sklearn.metrics import mean_squared_error
 from sklearn.metrics import make_scorer
 from Feature_Engineering.Categorical_Quantification import DataFrameImputer
 import pickle
+from lightgbm import LGBMRegressor
 
 #TODO Set threshold that captures most of the positive cases, Optimize everything
 
@@ -64,22 +65,31 @@ Regression model fitting
 '''
 
 
-
-
 class GroupEstimator(BaseEstimator):
-    def __init__(self, base_estimator):
+    def __init__(self, base_estimator, threshold=0.5):
         self.base_estimator = base_estimator
+        self.threshold=threshold
+        self.positive_mask = None
+        self.negative_mask = None
 
     def fit(self, X, y):
         self._base_estimator = clone(self.base_estimator)
-        y_true = y.drop('fullVisitorId', axis=1)
-        self._base_estimator.fit(X, y_true)
+        self.positive_mask = X['positive_probability']>=self.threshold
+        self.negative_mask = X['positive_probability']<self.threshold
+        y_true = y.drop(['fullVisitorId'], axis=1)
+        self._base_estimator.fit(X[self.positive_mask].drop('positive_probability', axis=1), y_true)
         return self
 
     def predict(self, X):
-        predictions = self._base_estimator.predict(X)
+        X_positives = X[self.positive_mask].drop('positive_probability', axis=1)
+        predictions_1 = self._base_estimator.predict(X_positives)
+        X_positives['predictions'] =predictions_1
+        for_join = pd.DataFrame(X_positives['predictions'])
+        X= X.join(for_join, how='left')
+        X= X['predictions'].fillna(0)
         #predictions = predictions.clip(min=0)
-        predictions = np.abs(predictions)
+        predictions = np.abs(X['predictions'])
+
         return predictions
 
 
@@ -102,45 +112,6 @@ X = df[mask_positive_cases]
 
 pipe = Pipeline(steps = [('reducer', ReduceCardinality()), ('featurize', FunctionFeaturizer()) , ('impute',SimpleImputer(strategy='median')), ('classify', GroupEstimator(XGBRegressor(nthread=4, n_jobs=4)))])
 
-'''
-param_grid = {
-    'classify__n_estimators':[100, 200, 300, 500],
-    'classify__max_depth':[3, 5, 7, 10]
-}
-
-'''
-
-param_grid_XGboost ={
-    'classify__base_estimator__learning_rate':[0.3],
-    'classify__base_estimator__gamma':[0.01, 0.05, 0.1, 0.3, 0.5, 1, 5],
-    'classify__base_estimator__max_depth':[3,5,10,15,20],
-    'classify__base_estimator__colsample_bytree':[0.1, 0.5, 0.9],
-    'classify__base_estimator__colsample_bylevel':[0.1, 0.5, 0.9],
-    'classify__base_estimator__reg_lambda': [0.1, 0.3, 0.5, 0.9],
-    'classify__base_estimator__reg_alpha': [0.1, 0.3, 0.5, 0.9],
-    'classify__base_estimator__subsample': [0.7, 1],
-    'classify__base_estimator__n_estimators':[50, 100, 500, 1000, 3000]
-}
-
-'''
-base_score=0.5, booster='gbtree', colsample_bylevel=1,
-       colsample_bytree=1, gamma=0, learning_rate=0.1, max_delta_step=0,
-       max_depth=3, min_child_weight=1, missing=nan, n_estimators=100,
-       n_jobs=1, nthread=None, objective='reg:linear', random_state=0,
-       reg_alpha=0, reg_lambda=1, scale_pos_weight=1, seed=None,
-       silent=True, subsample=1). Check the list of available parameters with `estimator.get_params().keys()`.
-'''
-
-
-'''
-param_grid_XGboost ={
-    'classify__base_estimator__gamma':[0, 0.3],
-    'classify__base_estimator__max_depth':[5],
-    'classify__base_estimator__n_estimators':[20],
-    
-}
-'''
-
 
 clf = GridSearchCV(pipe, cv=4,param_grid = param_grid_XGboost, scoring=rmse_score, return_train_score=False, error_score='raise', verbose=True)
 model=clf.fit(X=X.drop(['fullVisitorId', 'transactionRevenue'], axis =1), y=X[['fullVisitorId', 'transactionRevenue']])
@@ -156,19 +127,8 @@ pickle._dump(model, open('Models/First_RF_Regression.sav', 'wb'))
 Learning on whole dataframe
 '''
 
-param_grid_XGboost ={
-    'classify__base_estimator__learning_rate':[0.3],
-    'classify__base_estimator__gamma':[0.01, 0.05, 0.1],
-    'classify__base_estimator__max_depth':[5,10,15],
-    'classify__base_estimator__colsample_bytree':[0.7,1],
-    'classify__base_estimator__colsample_bylevel':[0.7,1],
-    'classify__base_estimator__reg_lambda': [0.1],
-    'classify__base_estimator__reg_alpha': [0.1, 0.5],
-    'classify__base_estimator__subsample': [0.7, 1],
-    'classify__base_estimator__n_estimators':[50, 100, 500]
-}
 
-clf = GridSearchCV(pipe, cv=5,param_grid = param_grid_XGboost, scoring=rmse_score, return_train_score=False, error_score='raise', verbose=True)
+clf = GridSearchCV(pipe, cv=5,param_grid = param_grid_LGBM, scoring=rmse_score, return_train_score=False, error_score='raise', verbose=True)
 model=clf.fit(X=df.drop(['fullVisitorId', 'transactionRevenue'], axis =1), y=df[['fullVisitorId', 'transactionRevenue']])
 print(model.best_score_)
 pickle._dump(model, open('Models/Total_Regression.sav', 'wb'))
@@ -179,20 +139,6 @@ pickle._dump(model, open('Models/Total_Regression.sav', 'wb'))
 Light GBM regression
 
 '''
-from lightgbm import LGBMRegressor
-
-param_grid_LGBM = {
-    'classify__base_estimator__objective':['regression'],
-    'classify__base_estimator__boosting_type':['gbdt'],
-    'classify__base_estimator__metric':['rmse'],
-    'classify__base_estimator__n_estimators':[10000], #10000
-    'classify__base_estimator__num_leaves':[30],
-    'classify__base_estimator__learning_rate':[0.01], #0.01
-    'classify__base_estimator__bagging_fraction':[0.9],#0.8
-    'classify__base_estimator__feature_fraction':[0.3],#.3
-    'classify__base_estimator__max_depth':[12] #-1
-}
-
 
 pipe = Pipeline(steps = [('reducer', ReduceCardinality()), ('featurize', FunctionFeaturizer()) , ('impute',SimpleImputer(strategy='median')), ('classify', GroupEstimator(LGBMRegressor(nthread=4, n_jobs=4)))])
 clf = GridSearchCV(pipe, cv=5,param_grid = param_grid_LGBM, scoring=rmse_score, return_train_score=False, error_score='raise', verbose=True)

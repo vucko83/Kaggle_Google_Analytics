@@ -3,8 +3,6 @@ from sklearn.base import BaseEstimator
 import pandas as pd
 import numpy as np
 
-
-
 class FunctionFeaturizer(BaseEstimator, TransformerMixin):
     '''
     This one is for mean - it can be used for binary or numerical class
@@ -108,7 +106,7 @@ class DataFrameImputer(TransformerMixin):
         Columns of dtype object are imputed with the most frequent value
         in column.
 
-        Columns of other types are imputed with mean of column.
+        Columns of other types are imputed with median of the column column.
 
         """
     def fit(self, X, y=None):
@@ -123,3 +121,16 @@ class DataFrameImputer(TransformerMixin):
         return X.fillna(self.fill)
 
 
+class PositiveEstimator(BaseEstimator, TransformerMixin):
+
+    def __init__(self, classifier):
+        self.classifier = classifier
+    '''
+    def fit(self, X, y=None):    
+    return self
+    '''
+    def transform(self, X):
+        prediction_class = self.classifier.predict_proba(X.drop('fullVisitorId', axis=1)) # predict probabilities of positive and negative class
+        positive_proba = prediction_class[:,1] # take only probabilities for positive class
+        X['positive_probability']=positive_proba
+        return X

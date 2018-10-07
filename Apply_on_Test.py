@@ -50,7 +50,32 @@ for_submission.to_csv('Data/Submissions/first_submission.csv', header = True, in
 Classification
 '''
 LR = pickle.load(open('Models/First_Logistic.sav','rb'))
-predictions_class = LR.predict(test.drop('fullVisitorId', axis=1)) # Predict 0s with classification algorithm
+predictions_class = LR.predict_proba(test.drop('fullVisitorId', axis=1)) # Predict 0s with classification algorithm
+
+positive_mask = predictions_class[:,1]>0.4
+
+a=test[positive_mask]
+a['predictions'] = 1
+
+b=pd.DataFrame(a['predictions'])
+
+c= test.join(b, how='left')
+
+null_mask = c['predictions'].notnull()
+
+c[null_mask]
+
+
+b.head()
+
+
+type(a['predictions'])
+
+a.head()
+
+
+test.shape
+
 
 
 test['Predicted_Revenue'] = predictions_class
