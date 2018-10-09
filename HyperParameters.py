@@ -41,7 +41,7 @@ param_grid_LGBM = {
     'classify__base_estimator__objective':['regression'],
     'classify__base_estimator__boosting_type':['gbdt'],
     'classify__base_estimator__metric':['rmse'],
-    'classify__base_estimator__n_estimators':[100, 500],#, 300, 500, 1000, 5000], #10000
+    'classify__base_estimator__n_estimators':[100],#, 300, 500, 1000, 5000], #10000
     'classify__base_estimator__num_leaves':[70],
     'classify__base_estimator__learning_rate':[0.1], #0.01
     'classify__base_estimator__bagging_fraction':[0.7],#0.8

@@ -1,7 +1,7 @@
 from sklearn.base import TransformerMixin
-from sklearn.base import BaseEstimator
 import pandas as pd
 import numpy as np
+from sklearn.base import BaseEstimator, clone
 
 class FunctionFeaturizer(BaseEstimator, TransformerMixin):
     '''
@@ -28,7 +28,7 @@ class FunctionFeaturizer(BaseEstimator, TransformerMixin):
         featurizers = []
         categorical_features = list(X.select_dtypes(include='object').columns)
         for att in categorical_features:
-            quantified = pd.concat([X[att], y], axis=1)
+            quantified = pd.concat([X[att], y.drop('fullVisitorId', axis=1)], axis=1)
             grouped = quantified.groupby(att).agg('mean') # this one is aggregation it can be change with other methods
             grouped.columns = [att]
             featurizers.append(grouped)
@@ -98,7 +98,7 @@ class ReduceCardinality(BaseEstimator, TransformerMixin):
         return result_dict
 
 
-class DataFrameImputer(TransformerMixin):
+class DataFrameImputer(BaseEstimator, TransformerMixin):
 
     def __init__(self):
         """Impute missing values.
@@ -109,6 +109,7 @@ class DataFrameImputer(TransformerMixin):
         Columns of other types are imputed with median of the column column.
 
         """
+        self.fill = None
     def fit(self, X, y=None):
 
         self.fill = pd.Series([X[c].value_counts().index[0]
@@ -125,12 +126,18 @@ class PositiveEstimator(BaseEstimator, TransformerMixin):
 
     def __init__(self, classifier):
         self.classifier = classifier
-    '''
-    def fit(self, X, y=None):    
-    return self
-    '''
+        self.prediction_class = None
+        self.positive_proba = None
+
+    def fit(self, X, y=None):
+        y_class = y['transactionRevenue'].apply(lambda x: 1 if x>0 else x)
+        self.classifier = self.classifier.fit(X, y_class)
+
+        return self
+
     def transform(self, X):
-        prediction_class = self.classifier.predict_proba(X.drop('fullVisitorId', axis=1)) # predict probabilities of positive and negative class
-        positive_proba = prediction_class[:,1] # take only probabilities for positive class
-        X['positive_probability']=positive_proba
-        return X
+        #X =np.concatenate([X, self.positive_proba], axis=1)
+        self.prediction_class = self.classifier.predict_proba(X)  # predict probabilities of positive and negative class
+        self.positive_proba = self.prediction_class[:, 1]  # take only probabilities for positive class
+        X['positive_probability'] = self.positive_proba
+        return (X)

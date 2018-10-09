@@ -28,6 +28,7 @@ att_names = ['fullVisitorId', 'PredictedLogRevenue']
 test['total_predictions']=all_predictions
 for_submission = test[['fullVisitorId', 'total_predictions']]
 for_submission.columns=att_names
+
 for_submission = for_submission.groupby('fullVisitorId')['PredictedLogRevenue'].sum().reset_index()
 final_predictions =np.log1p(for_submission['PredictedLogRevenue'])
 
